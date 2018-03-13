@@ -65,6 +65,7 @@ CALC_XPATHS = FeaturePreview(
     description=_(
         "Specify a custom xpath expression to calculate a value "
         "in the case list or case detail screen."),
+    help_link='',
 )
 
 ENUM_IMAGE = FeaturePreview(
