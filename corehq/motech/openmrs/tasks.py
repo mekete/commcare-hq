@@ -21,15 +21,20 @@ from corehq.apps.case_importer import util as importer_util
 from corehq.apps.case_importer.const import LookupErrors
 from corehq.apps.case_importer.util import EXTERNAL_ID
 from corehq.apps.hqcase.utils import submit_case_blocks
-from corehq.apps.locations.dbaccessors import get_all_users_by_location
 from corehq.apps.locations.models import SQLLocation, LocationType
 from corehq.apps.users.models import CommCareUser
-from corehq.motech.openmrs.const import IMPORT_FREQUENCY_WEEKLY, IMPORT_FREQUENCY_MONTHLY, XMLNS_OPENMRS
+from corehq.motech.openmrs.atom_feed import poll_openmrs_atom_feeds
+from corehq.motech.openmrs.const import (
+    IMPORT_FREQUENCY_WEEKLY,
+    IMPORT_FREQUENCY_MONTHLY,
+    OPENMRS_ATOM_FEED_POLL_INTERVAL,
+    XMLNS_OPENMRS,
+)
 from corehq.motech.openmrs.dbaccessors import get_openmrs_importers_by_domain
 from corehq.motech.openmrs.logger import logger
 from corehq.motech.openmrs.models import POSIX_MILLISECONDS
 from corehq.motech.openmrs.repeater_helpers import Requests
-from corehq.motech.utils import b64_aes_decrypt
+from corehq.motech.utils import b64_aes_decrypt, get_commcare_users_by_location
 from toggle.shortcuts import find_domains_with_toggle_enabled
 import six
 
@@ -116,12 +121,6 @@ def get_updatepatient_caseblock(case, patient, importer):
         case_name=case_name,
         update=fields_to_update,
     )
-
-
-def get_commcare_users_by_location(domain_name, location_id):
-    for user in get_all_users_by_location(domain_name, location_id):
-        if user.is_commcare_user():
-            yield user
 
 
 def import_patients_of_owner(requests, importer, domain_name, owner, location=None):
@@ -252,9 +251,14 @@ def import_patients():
         import_patients_to_domain(domain_name)
 
 
-@task(queue='background_queue')
+@periodic_task(
+    run_every=crontab(**OPENMRS_ATOM_FEED_POLL_INTERVAL),
+    queue='background_queue'
+)
 def track_changes():
     """
     Uses the OpenMRS Atom Feed to track changes
     """
-    pass
+    domains = find_domains_with_toggle_enabled(toggles.OPENMRS_INTEGRATION)
+    for domain in domains:
+        poll_openmrs_atom_feeds(domain)

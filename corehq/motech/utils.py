@@ -8,6 +8,7 @@ import six
 from Crypto.Cipher import AES
 from django.conf import settings
 
+from corehq.apps.locations.dbaccessors import get_all_users_by_location
 
 AES_BLOCK_SIZE = 16
 AES_KEY_MAX_LEN = 32  # AES key must be either 16, 24, or 32 bytes long
@@ -98,3 +99,9 @@ def pformat_json(data):
         return json.dumps(json_data, indent=2, sort_keys=True)
     except ValueError:
         return data
+
+
+def get_commcare_users_by_location(domain_name, location_id):
+    for user in get_all_users_by_location(domain_name, location_id):
+        if user.is_commcare_user():
+            yield user
