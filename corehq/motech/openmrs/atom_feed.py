@@ -16,12 +16,11 @@ from corehq.apps.case_importer import util as importer_util
 from corehq.apps.case_importer.const import LookupErrors
 from corehq.apps.case_importer.util import EXTERNAL_ID
 from corehq.apps.hqcase.utils import submit_case_blocks
-from corehq.apps.users.models import CommCareUser
+from corehq.apps.locations.dbaccessors import get_one_commcare_user_at_location
 from corehq.motech.openmrs.const import XMLNS_OPENMRS, OPENMRS_ATOM_FEED_DEVICE_ID
 from corehq.motech.openmrs.openmrs_config import get_property_map
 from corehq.motech.openmrs.repeater_helpers import Requests, get_patient_by_uuid
 from corehq.motech.openmrs.repeaters import OpenmrsRepeater
-from corehq.motech.utils import get_commcare_users_by_location
 from corehq.util.soft_assert import soft_assert
 
 
@@ -146,6 +145,7 @@ def get_addpatient_caseblock(case_type, owner, patient, repeater):
             update=fields_to_update,
         )
 
+
 def get_updatepatient_caseblock(case, patient, repeater):
     property_map = get_property_map(repeater.openmrs_config.case_config)
 
@@ -194,16 +194,14 @@ def update_patient(repeater, patient_uuid, updated_at):
         case_type=case_type,
     )
     if error == LookupErrors.NotFound:
-        try:
-            owner = next(get_commcare_users_by_location(repeater.domain, repeater.location_id))
-        except StopIteration:
-            _assert(
-                False,
-                'No users found at location "{}" to own patients added from '
-                'OpenMRS atom feed. domain: "{}". repeater: "{}".'.format(
-                    repeater.location_id, repeater.domain, repeater.get_id
-                )
+        owner = get_one_commcare_user_at_location(repeater.domain, repeater.location_id)
+        _assert(
+            owner,
+            'No users found at location "{}" to own patients added from '
+            'OpenMRS atom feed. domain: "{}". repeater: "{}".'.format(
+                repeater.location_id, repeater.domain, repeater.get_id
             )
+        )
         case_block = get_addpatient_caseblock(case_type, owner, patient, repeater)
 
     else:

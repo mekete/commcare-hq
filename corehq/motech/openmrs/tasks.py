@@ -21,6 +21,7 @@ from corehq.apps.case_importer import util as importer_util
 from corehq.apps.case_importer.const import LookupErrors
 from corehq.apps.case_importer.util import EXTERNAL_ID
 from corehq.apps.hqcase.utils import submit_case_blocks
+from corehq.apps.locations.dbaccessors import get_one_commcare_user_at_location
 from corehq.apps.locations.models import SQLLocation, LocationType
 from corehq.apps.users.models import CommCareUser
 from corehq.motech.openmrs.atom_feed import poll_openmrs_atom_feeds
@@ -34,7 +35,7 @@ from corehq.motech.openmrs.dbaccessors import get_openmrs_importers_by_domain
 from corehq.motech.openmrs.logger import logger
 from corehq.motech.openmrs.models import POSIX_MILLISECONDS
 from corehq.motech.openmrs.repeater_helpers import Requests
-from corehq.motech.utils import b64_aes_decrypt, get_commcare_users_by_location
+from corehq.motech.utils import b64_aes_decrypt
 from toggle.shortcuts import find_domains_with_toggle_enabled
 import six
 
@@ -209,9 +210,8 @@ def import_patients_to_domain(domain_name, force=False):
                 locations = SQLLocation.objects.filter(domain=domain_name, location_type=location_type)
             for location in locations:
                 # Assign cases to the first user in the location, not to the location itself
-                try:
-                    owner = next(get_commcare_users_by_location(domain_name, location.location_id))
-                except StopIteration:
+                owner = get_one_commcare_user_at_location(domain_name, location.location_id)
+                if not owner:
                     logger.error(
                         'Project space "{domain}" at location "{location}" has no user to own cases imported from '
                         'OpenMRS Importer "{importer}"'.format(
